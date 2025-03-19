@@ -7,12 +7,9 @@ import {
   ScrollView, 
   TouchableOpacity,
   SafeAreaView,
-  Modal,
-  Dimensions 
+  Modal 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-const { width: screenWidth } = Dimensions.get('window');
 
 type PlantImage = {
   id: string;
@@ -55,30 +52,18 @@ const PlantDetailScreen = ({ route, navigation }) => {
       <Text style={styles.sectionTitle}>Growth Timeline</Text>
       {groupImagesByMonth(sampleImages).map(([month, images]) => (
         <View key={month} style={styles.monthSection}>
-          <View style={styles.monthHeader}>
-            <Text style={styles.monthTitle}>{month}</Text>
-            <Text style={styles.imageCount}>{images.length} photos</Text>
-          </View>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.carouselContainer}
-          >
+          <Text style={styles.monthTitle}>{month}</Text>
+          <View style={styles.imageGrid}>
             {images.map((image: PlantImage) => (
               <TouchableOpacity
                 key={image.id}
-                style={styles.carouselImage}
+                style={styles.gridImage}
                 onPress={() => setSelectedImage(image)}
               >
-                <Image source={image.uri} style={styles.carouselImageContent} />
-                <View style={styles.imageDateOverlay}>
-                  <Text style={styles.imageDateText}>
-                    {image.date.toLocaleDateString('default', { day: 'numeric', month: 'short' })}
-                  </Text>
-                </View>
+                <Image source={image.uri} style={styles.gridImageContent} />
               </TouchableOpacity>
             ))}
-          </ScrollView>
+          </View>
         </View>
       ))}
     </View>
@@ -249,7 +234,7 @@ const styles = StyleSheet.create({
   },
   waterButton: {
     flexDirection: 'row',
-    alignItems: 'center',
+  alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#2D5D54',
     borderRadius: 16,
@@ -313,66 +298,34 @@ const styles = StyleSheet.create({
     borderTopColor: '#E8F3F1',
   },
   sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
     color: '#2D5D54',
-    marginBottom: 20,
-    paddingHorizontal: 4,
+    marginBottom: 16,
   },
   monthSection: {
-    marginBottom: 24,
-  },
-  monthHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 4,
+    marginBottom: 20,
   },
   monthTitle: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '500',
     color: '#4A6D64',
+    marginBottom: 12,
   },
-  imageCount: {
-    fontSize: 14,
-    color: '#6B8C86',
-    fontWeight: '500',
+  imageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -4,
   },
-  carouselContainer: {
-    paddingHorizontal: 4,
+  gridImage: {
+    width: '33.33%',
+    padding: 4,
   },
-  carouselImage: {
-    width: screenWidth * 0.35,
-    marginRight: 12,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#F8FAF9',
-    shadowColor: '#357266',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  carouselImageContent: {
+  gridImageContent: {
     width: '100%',
-    height: screenWidth * 0.35,
-    borderRadius: 12,
-  },
-  imageDateOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 8,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-  },
-  imageDateText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '500',
+    aspectRatio: 1,
+    borderRadius: 8,
+    backgroundColor: '#F8FAF9',
   },
   imagePreviewModal: {
     flex: 1,
@@ -381,9 +334,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   previewImage: {
-    width: screenWidth,
-    height: screenWidth,
-    resizeMode: 'contain',
+    width: '100%',
+    height: '80%',
   },
   closePreviewButton: {
     position: 'absolute',
@@ -391,8 +343,6 @@ const styles = StyleSheet.create({
     right: 20,
     zIndex: 1,
     padding: 10,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 20,
   },
 });
 

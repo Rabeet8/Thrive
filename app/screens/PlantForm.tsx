@@ -14,6 +14,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { supabase } from '../../lib/supabase';
+import { decode } from 'base64-arraybuffer';
+import CustomAlert from '../components/CustomAlert';
 
 const AddPlantFormScreen = ({ navigation }) => {
   const [plantName, setPlantName] = useState('');
@@ -21,17 +24,45 @@ const AddPlantFormScreen = ({ navigation }) => {
   const [image, setImage] = useState(null);
   const [isWateringModalVisible, setWateringModalVisible] = useState(false);
   const [selectedWateringDays, setSelectedWateringDays] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    message: '',
+    type: 'success',
+    title: ''
+  });
+
+  const showAlert = (message, type = 'success', title = '', onDismiss = () => {}) => {
+    setAlertConfig({
+      visible: true,
+      message,
+      type,
+      title
+    });
+    // Store the onDismiss callback to be called when alert is closed
+    alertDismissCallback.current = onDismiss;
+  };
+
+  const hideAlert = () => {
+    setAlertConfig(prev => ({ ...prev, visible: false }));
+    // Call the stored callback when alert is dismissed
+    if (alertDismissCallback.current) {
+      alertDismissCallback.current();
+      alertDismissCallback.current = null;
+    }
+  };
+
+  // Add ref for storing alert dismiss callback
+  const alertDismissCallback = React.useRef(null);
 
   const pickImage = async () => {
-    // Request permission to access the camera
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     
     if (status !== 'granted') {
-      alert('Sorry, we need camera permissions to make this work!');
+      showAlert('Camera permission is required to add plant photos.', 'error', 'Permission Required');
       return;
     }
     
-    // No permissions request is necessary for launching the image library
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -44,26 +75,121 @@ const AddPlantFormScreen = ({ navigation }) => {
     }
   };
 
-  const handleSubmit = () => {
+  const uploadImage = async (uri) => {
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const base64 = reader.result.split(',')[1];
+            const fileName = `${Date.now()}.jpg`;
+            
+            const { data, error } = await supabase.storage
+              .from('plant-images')
+              .upload(fileName, decode(base64), {
+                contentType: 'image/jpeg',
+                upsert: true
+              });
+
+            if (error) throw error;
+
+            const { data: { publicUrl } } = supabase.storage
+              .from('plant-images')
+              .getPublicUrl(fileName);
+
+            resolve(publicUrl);
+          } catch (error) {
+            reject(error);
+          }
+        };
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      throw error;
+    }
+  };
+
+  const handleSubmit = async () => {
     if (!plantName.trim()) {
-      alert('Please enter a plant name');
+      showAlert('Please enter a plant name', 'warning', 'Missing Information');
       return;
     }
     
     if (!image) {
-      alert('Please add a plant photo');
+      showAlert('Please add a plant photo', 'warning', 'Missing Information');
       return;
     }
-    
-    // Here you would submit the form data to your backend or state management
-    console.log({
-      name: plantName,
-      description,
-      image,
-    });
-    
-    // Navigate back to the home screen or wherever appropriate
-    navigation.goBack();
+
+    try {
+      setUploading(true);
+
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('User error:', userError);
+        throw new Error('Authentication error: ' + userError.message);
+      }
+      
+      if (!user) {
+        throw new Error('No authenticated user found');
+      }
+
+      const imageUrl = await uploadImage(image);
+
+      const plantData = {
+        user_id: user.id,
+        name: plantName.trim(),
+        description: description?.trim() || '',
+        image_url: imageUrl,
+        watering_frequency: selectedWateringDays || 0,
+      };
+      
+      const { data, error: insertError } = await supabase
+        .from('Plant')
+        .insert([plantData])
+        .select('*')
+        .maybeSingle();
+
+      if (insertError) {
+        console.error('Insert error details:', {
+          code: insertError.code,
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint
+        });
+        throw new Error(`Database error: ${insertError.message}`);
+      }
+
+      if (!data) {
+        throw new Error('No data returned after insert');
+      }
+
+      console.log('Successfully inserted plant:', data);
+      showAlert(
+        'Plant added successfully!',
+        'success',
+        'Success',
+        () => navigation.goBack() // Navigate only after alert is dismissed
+      );
+    } catch (error) {
+      console.error('Full error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      showAlert(
+        error.message || 'Unknown error occurred',
+        'error',
+        'Error Saving Plant'
+      );
+    } finally {
+      setUploading(false);
+    }
   };
 
   const WateringModal = ({ visible, onClose, onSelect }) => {
@@ -185,8 +311,14 @@ const AddPlantFormScreen = ({ navigation }) => {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-            <Text style={styles.submitButtonText}>Add Plant</Text>
+          <TouchableOpacity 
+            style={[styles.submitButton, uploading && styles.submitButtonDisabled]} 
+            onPress={handleSubmit}
+            disabled={uploading}
+          >
+            <Text style={styles.submitButtonText}>
+              {uploading ? 'Saving...' : 'Add Plant'}
+            </Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -194,6 +326,13 @@ const AddPlantFormScreen = ({ navigation }) => {
         visible={isWateringModalVisible}
         onClose={() => setWateringModalVisible(false)}
         onSelect={setSelectedWateringDays}
+      />
+      <CustomAlert
+        visible={alertConfig.visible}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        onClose={hideAlert}
       />
     </SafeAreaView>
   );
@@ -351,6 +490,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
     textAlign: 'center',
+  },
+  submitButtonDisabled: {
+    opacity: 0.7,
   },
   modalOverlay: {
     flex: 1,

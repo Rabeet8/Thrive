@@ -8,10 +8,12 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
-  ScrollView
+  ScrollView,
+  Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { supabase } from '../../lib/supabase';
 
 type AuthMode = 'login' | 'signup';
 
@@ -25,12 +27,83 @@ export default function AuthScreen({ onAuthenticate }: { onAuthenticate: () => v
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleSubmit = () => {
-    // Here you would implement actual authentication logic
-    console.log(`Submitting ${mode} with email: ${email}`);
-    // onAuthenticate();
+  const handleSubmit = async () => {
+    if (!email || !password) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      if (mode === 'signup') {
+        if (!name) {
+          setError('Please enter your name');
+          return;
+        }
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: name,
+            },
+          },
+        });
+        if (error) throw error;
+        
+        setError(''); // Clear any existing errors
+        setEmail('');
+        setPassword('');
+        setName('');
+        setMode('login'); // Switch to login mode
+        Alert.alert('Account created! Please login to continue.');
+        return;
+      } else {
+        // Login flow
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) {
+          if (error.message.includes('Email not confirmed')) {
+            throw new Error('Please confirm your email before logging in.');
+          }
+          throw error;
+        }
+        
+        await onAuthenticate();
+        router.replace('/screens/HomeScreen');
+      }
+    } catch (error: any) {
+      setError(error.message);
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Please enter your email address');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) throw error;
+      Alert.alert(
+        'Password Reset',
+        'Password reset email has been sent to your email address.'
+      );
+    } catch (error: any) {
+      setError('Error sending password reset email. Please try again.');
+    }
   };
 
   const toggleMode = () => {
@@ -51,7 +124,7 @@ export default function AuthScreen({ onAuthenticate }: { onAuthenticate: () => v
         <View style={styles.logoContainer}>
         <Image 
   source={require('../../assets/images/icon.jpg')} 
-  style={[styles.logo, { width: 170}]}  // Increased from 80 to 120
+  style={[styles.logo, { width: 170}]} 
 />
         <Text style={styles.logoText}>Thrive</Text>
         </View>
@@ -72,6 +145,8 @@ export default function AuthScreen({ onAuthenticate }: { onAuthenticate: () => v
         </View>
 
         <View style={styles.formContainer}>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          
           {mode === 'signup' && (
             <View style={styles.inputContainer}>
               <Ionicons name="person-outline" size={22} color="#357266" style={styles.inputIcon} />
@@ -121,14 +196,25 @@ export default function AuthScreen({ onAuthenticate }: { onAuthenticate: () => v
           </View>
 
           {mode === 'login' && (
-            <TouchableOpacity style={styles.forgotPassword}>
+            <TouchableOpacity 
+              style={styles.forgotPassword}
+              onPress={handleForgotPassword}
+            >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity style={styles.button} onPress={handleSubmit}>
+          <TouchableOpacity 
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleSubmit}
+            disabled={loading}
+          >
             <Text style={styles.buttonText}>
-              {mode === 'login' ? 'Login' : 'Create Account'}
+              {loading 
+                ? 'Please wait...' 
+                : mode === 'login' 
+                  ? 'Login' 
+                  : 'Create Account'}
             </Text>
           </TouchableOpacity>
 
@@ -257,7 +343,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  
+  buttonDisabled: {
+    backgroundColor: '#A5A5A5',
+    opacity: 0.7,
+  },
   switchMode: {
     alignItems: 'center',
     marginTop:10,
@@ -265,5 +354,11 @@ const styles = StyleSheet.create({
   switchModeText: {
     color: '#357266',
     fontWeight: '500',
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 14,
+    marginBottom: 16,
+    textAlign: 'center',
   },
 });
