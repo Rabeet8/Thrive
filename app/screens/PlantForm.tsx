@@ -150,42 +150,44 @@ const AddPlantFormScreen = ({ navigation }) => {
       };
       
       const { data, error: insertError } = await supabase
-        .from('Plant')
+        .from('plant') 
         .insert([plantData])
         .select('*')
-        .maybeSingle();
+        .single();
+
+      console.log('Insert response:', { data, error: insertError }); // Debug log
 
       if (insertError) {
         console.error('Insert error details:', {
-          code: insertError.code,
           message: insertError.message,
+          hint: insertError.hint,
           details: insertError.details,
-          hint: insertError.hint
+          code: insertError.code
         });
-        throw new Error(`Database error: ${insertError.message}`);
+        throw new Error(insertError.message || 'Error saving plant');
       }
 
       if (!data) {
         throw new Error('No data returned after insert');
       }
 
-      console.log('Successfully inserted plant:', data);
       showAlert(
         'Plant added successfully!',
         'success',
         'Success',
-        () => navigation.goBack() // Navigate only after alert is dismissed
+        () => navigation.goBack()
       );
     } catch (error) {
-      console.error('Full error details:', {
-        name: error.name,
+      console.error('Submission error:', {
         message: error.message,
+        cause: error.cause,
         stack: error.stack
       });
+      
       showAlert(
-        error.message || 'Unknown error occurred',
+        error.message || 'Failed to save plant. Please try again.',
         'error',
-        'Error Saving Plant'
+        'Error'
       );
     } finally {
       setUploading(false);

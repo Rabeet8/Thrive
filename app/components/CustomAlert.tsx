@@ -8,9 +8,19 @@ interface CustomAlertProps {
   message: string;
   type?: 'success' | 'error' | 'warning';
   onClose: () => void;
+  showCancelButton?: boolean;
+  onConfirm?: () => void;
 }
 
-const CustomAlert = ({ visible, title, message, type = 'success', onClose }: CustomAlertProps) => {
+const CustomAlert = ({ 
+  visible, 
+  title, 
+  message, 
+  type = 'success', 
+  onClose,
+  showCancelButton,
+  onConfirm 
+}: CustomAlertProps) => {
   const getIcon = () => {
     switch (type) {
       case 'success':
@@ -40,15 +50,27 @@ const CustomAlert = ({ visible, title, message, type = 'success', onClose }: Cus
           />
           {title && <Text style={styles.title}>{title}</Text>}
           <Text style={styles.message}>{message}</Text>
-          <TouchableOpacity
-            style={[
-              styles.button,
-              { backgroundColor: type === 'error' ? '#d95757' : '#357266' }
-            ]}
-            onPress={onClose}
-          >
-            <Text style={styles.buttonText}>OK</Text>
-          </TouchableOpacity>
+          <View style={styles.buttonContainer}>
+            {showCancelButton && (
+              <TouchableOpacity
+                style={[styles.button, styles.cancelButton]}
+                onPress={onClose}
+              >
+                <Text style={[styles.buttonText, styles.cancelButtonText]}>Cancel</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[
+                styles.button,
+                { backgroundColor: type === 'error' ? '#d95757' : '#357266' }
+              ]}
+              onPress={onConfirm || onClose}
+            >
+              <Text style={styles.buttonText}>
+                {onConfirm ? 'Delete' : 'OK'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -91,6 +113,12 @@ const styles = StyleSheet.create({
     marginVertical: 16,
     lineHeight: 22,
   },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 8,
+  },
   button: {
     paddingHorizontal: 32,
     paddingVertical: 12,
@@ -101,6 +129,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  cancelButton: {
+    backgroundColor: '#F0F0F0',
+  },
+  cancelButtonText: {
+    color: '#666',
   },
 });
 

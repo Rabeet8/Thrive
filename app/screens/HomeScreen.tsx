@@ -1,57 +1,25 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
   FlatList, 
-  Image, 
   TouchableOpacity, 
   SafeAreaView,
   StatusBar 
 } from 'react-native';
+import { Image as CacheImage } from 'react-native-expo-image-cache';
+import CustomAlert from '../components/CustomAlert';
 import BottomNavigation from './BottomNavigation';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import PlantDetailScreen from './PlantDetail';
 import PlantForm from './PlantForm';
+import { supabase } from '../../lib/supabase';
 
 const Stack = createNativeStackNavigator();
-
-// Sample data - replace with your actual data
-const plants = [
-  {
-    id: '1',
-    name: 'Monstera Deliciosa',
-    image: require('../../assets/images/monstera.png'),
-    lastWatered: 3,
-  },
-  {
-    id: '2',
-    name: 'Snake Plant',
-    image: require('../../assets/images/monstera.png'),
-    lastWatered: 7,
-  },
-  {
-    id: '3',
-    name: 'Peace Lily',
-    image: require('../../assets/images/monstera.png'),
-    lastWatered: 1,
-  },
-  {
-    id: '4',
-    name: 'Fiddle Leaf Fig',
-    image: require('../../assets/images/monstera.png'),
-    lastWatered: 5,
-  },
-  {
-    id: '5',
-    name: 'Pothos',
-    image: require('../../assets/images/monstera.png'),
-    lastWatered: 4,
-  },
-];
 
 type RootStackParamList = {
   Home: undefined;
@@ -61,20 +29,39 @@ type RootStackParamList = {
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
-interface PlantCardProps {
-  plant: {
-    id: string;
-    name: string;
-    image: any;
-    lastWatered: number;
-  };
-  onPress: () => void;
+interface Plant {
+  id: string;
+  name: string;
+  image_url: string;
+  watering_frequency: number;
+  last_watered?: string;
+  description: string;
 }
 
-const PlantCard = ({ plant, onPress }: PlantCardProps) => {
+const PlantCard = ({ plant, onPress, onDelete }: { 
+  plant: Plant; 
+  onPress: () => void;
+  onDelete: () => void;
+}) => {
+  const calculateDaysSinceWatered = () => {
+    if (!plant.last_watered) return null;
+    const lastWatered = new Date(plant.last_watered);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - lastWatered.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  const daysSinceWatered = calculateDaysSinceWatered();
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
-      <Image source={plant.image} style={styles.plantImage} />
+      <CacheImage 
+        uri={plant.image_url} 
+        style={styles.plantImage}
+        tint="light"
+        preview={{ uri: plant.image_url }}
+      />
       <View style={styles.cardContent}>
         <Text style={styles.plantName}>{plant.name}</Text>
         <View style={styles.waterInfo}>
@@ -82,12 +69,19 @@ const PlantCard = ({ plant, onPress }: PlantCardProps) => {
             <Ionicons name="water-outline" size={14} color="#FFFFFF" />
           </View>
           <Text style={styles.waterText}>
-            {plant.lastWatered === 1 
-              ? '1 day since last watered' 
-              : `${plant.lastWatered} days since last watered`}
+            {daysSinceWatered 
+              ? `${daysSinceWatered} ${daysSinceWatered === 1 ? 'day' : 'days'} since last watered`
+              : `Water every ${plant.watering_frequency} ${plant.watering_frequency === 1 ? 'day' : 'days'}`
+            }
           </Text>
         </View>
       </View>
+      <TouchableOpacity 
+        style={styles.deleteButton}
+        onPress={onDelete}
+      >
+        <Ionicons name="trash-outline" size={20} color="#d95757" />
+      </TouchableOpacity>
       <View style={styles.cardDecoration} />
     </TouchableOpacity>
   );
@@ -95,9 +89,153 @@ const PlantCard = ({ plant, onPress }: PlantCardProps) => {
 
 const MainHomeScreen = () => {
   const navigation = useNavigation<NavigationProp>();
-  
-  const handlePlantPress = (plant) => {
-    navigation.navigate('PlantDetail', { plant });
+  const [plants, setPlants] = useState<Plant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deleteAlert, setDeleteAlert] = useState({ visible: false, plantId: null, type: '', message: '' });
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchPlants();
+    }, [])
+  );
+
+  const onRefresh = React.useCallback(() => {
+    fetchPlants();
+  }, []);
+
+  const fetchPlants = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user logged in');
+
+      const { data, error } = await supabase
+        .from('plant')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPlants(data || []);
+    } catch (error) {
+      console.error('Error fetching plants:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeletePlant = async (plantId: string) => {
+    try {
+      // Get the plant's image filename from the image_url
+      const plantToDelete = plants.find(p => p.id === plantId);
+      const imageUrl = plantToDelete?.image_url || '';
+      const fileName = imageUrl.split('/').pop(); // Get the filename from URL
+
+      // Delete from database first
+      const { error: deleteError } = await supabase
+        .from('plant')
+        .delete()
+        .eq('id', plantId);
+
+      if (deleteError) {
+        console.error('Delete error:', deleteError);
+        throw new Error(deleteError.message);
+      }
+
+      // Delete image from storage if we have a filename
+      if (fileName) {
+        const { error: storageError } = await supabase.storage
+          .from('plant-images')
+          .remove([fileName]);
+
+        if (storageError) {
+          console.error('Storage delete error:', storageError);
+        }
+      }
+
+      // Update local state
+      setPlants(currentPlants => 
+        currentPlants.filter(plant => plant.id !== plantId)
+      );
+
+      // Show success message
+      setDeleteAlert(prev => ({
+        ...prev,
+        visible: true,
+        type: 'success',
+        message: 'Plant deleted successfully'
+      }));
+
+      // Close the alert after a short delay
+      setTimeout(() => {
+        setDeleteAlert({ visible: false, plantId: null, type: '', message: '' });
+      }, 1500);
+
+    } catch (error) {
+      console.error('Error deleting plant:', error);
+      setDeleteAlert(prev => ({
+        ...prev,
+        visible: true,
+        type: 'error',
+        message: 'Failed to delete plant. Please try again.'
+      }));
+      // Refresh plants list to ensure UI is in sync
+      fetchPlants();
+    }
+  };
+
+  const showDeleteConfirmation = (plantId: string) => {
+    setDeleteAlert({
+      visible: true,
+      plantId,
+      type: 'warning',
+      message: 'Are you sure you want to delete this plant?'
+    });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (deleteAlert.plantId) {
+      await handleDeletePlant(deleteAlert.plantId);
+    }
+    setDeleteAlert({ visible: false, plantId: null, type: '', message: '' });
+  };
+
+  const renderContent = () => {
+    if (plants.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Add your first plant</Text>
+          <View style={styles.arrowContainer}>
+            <Ionicons 
+              name="arrow-forward" 
+              size={40} 
+              color="#357266" 
+              style={styles.arrowIcon}
+            />
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <FlatList
+        data={plants}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <PlantCard 
+            plant={item} 
+            onPress={() => navigation.navigate('PlantDetail', { plantId: item.id })}
+            onDelete={() => showDeleteConfirmation(item.id)}
+          />
+        )}
+        contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
+        refreshing={loading}
+        onRefresh={onRefresh}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+      />
+    );
   };
 
   return (
@@ -110,15 +248,7 @@ const MainHomeScreen = () => {
         </TouchableOpacity>
       </View>
       
-      <FlatList
-        data={plants}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <PlantCard plant={item} onPress={() => handlePlantPress(item)} />
-        )}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-      />
+      {renderContent()}
 
       <TouchableOpacity 
         style={styles.fab}
@@ -126,6 +256,16 @@ const MainHomeScreen = () => {
       >
         <Ionicons name="add" size={24} color="#FFFFFF" />
       </TouchableOpacity>
+
+      <CustomAlert
+        visible={deleteAlert.visible}
+        title="Delete Plant"
+        message={deleteAlert.message}
+        type={deleteAlert.type}
+        onClose={() => setDeleteAlert({ visible: false, plantId: null, type: '', message: '' })}
+        onConfirm={handleDeleteConfirm}
+        showCancelButton={true}
+      />
     </SafeAreaView>
   );
 };
@@ -224,7 +364,7 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 20,
+    bottom: 80, // Moved up from 20
     backgroundColor: '#357266',
     width: 56,
     height: 56,
@@ -236,6 +376,43 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginBottom: 100, // Add space at bottom to account for FAB
+  },
+  emptyText: {
+    fontSize: 20,
+    color: '#357266',
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  arrowContainer: {
+    position: 'absolute',
+    bottom: 40,
+    right: '30%',
+  },
+  arrowIcon: {
+    transform: [{ rotate: '35deg' }],
+    // marginTop: 8,
+  },
+  deleteButton: {
+    position: 'absolute',
+    top: 8,
+    right: 12,
+    padding: 8,
+    zIndex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
   },
 });
 

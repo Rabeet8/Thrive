@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -7,9 +7,25 @@ import {
   ScrollView, 
   TouchableOpacity,
   SafeAreaView,
-  Modal 
+  Modal,
+  Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../lib/supabase';
+import { Image as CacheImage } from 'react-native-expo-image-cache';
+import Carousel from 'react-native-reanimated-carousel';
+import Animated from 'react-native-reanimated';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadTimelineImage } from '../utils/imageUpload';
+
+interface Plant {
+  id: string;
+  name: string;
+  description: string;
+  image_url: string;
+  watering_frequency: number;
+  last_watered?: string;
+}
 
 type PlantImage = {
   id: string;
@@ -17,57 +33,211 @@ type PlantImage = {
   date: Date;
 };
 
-const sampleImages: PlantImage[] = [
-  { id: '1', uri: require('../../assets/images/monstera.png'), date: new Date('2024-01-15') },
-  { id: '2', uri: require('../../assets/images/monstera.png'), date: new Date('2024-01-20') },
-  { id: '3', uri: require('../../assets/images/monstera.png'), date: new Date('2023-12-10') },
-  { id: '4', uri: require('../../assets/images/monstera.png'), date: new Date('2023-12-25') },
-];
+interface TimelineImage {
+  id: string;
+  image_url: string;
+  created_at: string;
+};
+
+interface GroupedImages {
+  [key: string]: TimelineImage[];
+}
 
 const PlantDetailScreen = ({ route, navigation }) => {
-  const { plant } = route.params;
+  const { plantId } = route.params;
+  const [plant, setPlant] = useState<Plant | null>(null);
+  const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<PlantImage | null>(null);
+  const [timelineImages, setTimelineImages] = useState<TimelineImage[]>([]);
+  const [mainImageModalVisible, setMainImageModalVisible] = useState(false);
+  const carouselRef = React.useRef(null);
   
-  const shortDescription = "The Monstera deliciosa is a species of flowering plant native to tropical forests. Popular as a houseplant due to its spectacular leaves and easy care requirements.";
-  
-  const fullDescription = "The Monstera deliciosa is a species of flowering plant native to tropical forests of southern Mexico, south to Panama. It has been introduced to many tropical areas, and has become a mildly invasive species in Hawaii, Seychelles, Ascension Island and the Society Islands. It is very popular as a houseplant due to its spectacular leaves and its ability to grow in low light conditions.\n\nCare instructions: Water when the top inch of soil is dry. Prefers bright, indirect light but can tolerate lower light conditions. Enjoy the natural fenestration (holes) that develop as the plant matures.";
+  useEffect(() => {
+    fetchPlantDetails();
+    fetchTimelineImages();
+  }, [plantId]);
 
-  const groupImagesByMonth = (images: PlantImage[]) => {
-    const grouped = images.reduce((acc, img) => {
-      const month = img.date.toLocaleString('default', { month: 'long', year: 'numeric' });
-      if (!acc[month]) {
-        acc[month] = [];
+  const fetchPlantDetails = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('plant')
+        .select('*')
+        .eq('id', plantId)
+        .single();
+
+      if (error) throw error;
+      setPlant(data);
+    } catch (error) {
+      console.error('Error fetching plant details:', error);
+      navigation.goBack();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTimelineImages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('plant_timeline')
+        .select('*')
+        .eq('plant_id', plantId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      console.log('Timeline images:', data); // Debug log
+      setTimelineImages(data || []);
+    } catch (error) {
+      console.error('Error fetching timeline images:', error);
+    }
+  };
+
+  const handleAddTimelinePhoto = async () => {
+    try {
+      // Request camera permission
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== 'granted') {
+        alert('Sorry, we need camera permissions to make this work!');
+        return;
       }
-      acc[month].push(img);
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets[0].uri) {
+        const imageUrl = await uploadTimelineImage(result.assets[0].uri, plant.id);
+        
+        // Save to plant_timeline table
+        const { error } = await supabase
+          .from('plant_timeline')
+          .insert({
+            plant_id: plant.id,
+            image_url: imageUrl,
+            user_id: plant.user_id // Add user_id for RLS
+          });
+
+        if (error) throw error;
+        
+        // Refresh timeline images
+        fetchTimelineImages();
+      }
+    } catch (error) {
+      console.error('Error adding timeline photo:', error);
+      alert('Failed to add timeline photo. Please try again.');
+    }
+  };
+
+  const groupImagesByMonth = (images: TimelineImage[]): GroupedImages => {
+    return images.reduce((acc, image) => {
+      const date = new Date(image.created_at);
+      const monthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+      
+      if (!acc[monthYear]) {
+        acc[monthYear] = [];
+      }
+      acc[monthYear].push(image);
       return acc;
     }, {});
-    return Object.entries(grouped).sort((a, b) => 
-      new Date(b[0]) - new Date(a[0])
+  };
+
+  const openImagePreview = (image: TimelineImage) => {
+    setSelectedImage({
+      id: image.id,
+      uri: image.image_url,
+      date: new Date(image.created_at)
+    });
+  };
+
+  const renderTimelineCard = (image: TimelineImage) => (
+    <TouchableOpacity
+      key={image.id}
+      style={styles.timelineCard}
+      onPress={() => openImagePreview(image)}
+    >
+      <CacheImage 
+        uri={image.image_url}
+        style={styles.timelineImage}
+        preview={{ uri: image.image_url }}
+        tint="light"
+      />
+      <View style={styles.timelineInfo}>
+        <Text style={styles.timelineDate}>
+          {new Date(image.created_at).toLocaleDateString()}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderTimelineSection = () => {
+    const groupedImages = groupImagesByMonth(timelineImages);
+    const months = Object.keys(groupedImages).sort((a, b) => {
+      return new Date(b).getTime() - new Date(a).getTime();
+    });
+
+    return (
+      <View style={styles.timelineSection}>
+        <View style={styles.timelineHeader}>
+          <Text style={styles.sectionTitle}>Growth Timeline</Text>
+          <TouchableOpacity 
+            style={styles.addPhotoButton}
+            onPress={handleAddTimelinePhoto}
+          >
+            <Ionicons name="camera-outline" size={24} color="#357266" />
+          </TouchableOpacity>
+        </View>
+
+        {months.length > 0 ? (
+          months.map((month) => (
+            <View key={month} style={styles.monthSection}>
+              <Text style={styles.monthTitle}>{month}</Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                style={styles.monthScroll}
+              >
+                {groupedImages[month].map(renderTimelineCard)}
+              </ScrollView>
+            </View>
+          ))
+        ) : (
+          <View style={styles.emptyTimeline}>
+            <Text style={styles.emptyTimelineText}>
+              No growth timeline photos yet
+            </Text>
+          </View>
+        )}
+      </View>
     );
   };
 
-  const renderImageCatalogue = () => (
-    <View style={styles.catalogueSection}>
-      <Text style={styles.sectionTitle}>Growth Timeline</Text>
-      {groupImagesByMonth(sampleImages).map(([month, images]) => (
-        <View key={month} style={styles.monthSection}>
-          <Text style={styles.monthTitle}>{month}</Text>
-          <View style={styles.imageGrid}>
-            {images.map((image: PlantImage) => (
-              <TouchableOpacity
-                key={image.id}
-                style={styles.gridImage}
-                onPress={() => setSelectedImage(image)}
-              >
-                <Image source={image.uri} style={styles.gridImageContent} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      ))}
-    </View>
-  );
+  const renderInfoItems = () => [
+    {
+      icon: 'water',
+      label: `Every ${plant.watering_frequency} ${plant.watering_frequency === 1 ? 'day' : 'days'}`,
+    },
+    {
+      icon: 'sunny',
+      label: 'Indirect light',
+    },
+    {
+      icon: 'thermometer',
+      label: '18-25°C',
+    },
+  ];
+
+  if (loading || !plant) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text>Loading plant details...</Text>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -81,33 +251,38 @@ const PlantDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
         
-        <Image 
-          source={plant.image}
-          style={styles.plantImage} 
-          resizeMode="cover"
-        />
-        
+        <TouchableOpacity 
+          style={styles.mainImageContainer}
+          onPress={() => setMainImageModalVisible(true)}
+        >
+          <CacheImage 
+            uri={plant.image_url}
+            style={styles.plantImage} 
+            resizeMode="cover"
+          />
+        </TouchableOpacity>
+
         <View style={styles.contentContainer}>
           <Text style={styles.plantName}>{plant.name}</Text>
           
           <View style={styles.infoContainer}>
-            <View style={styles.infoItem}>
-              <Ionicons name="water" size={28} color="#2D5D54" />
-              <Text style={styles.infoText}>Water weekly</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Ionicons name="leaf" size={28} color="#2D5D54" />
-              <Text style={styles.infoText}>Tropical</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Ionicons name="heart" size={28} color="#2D5D54" />
-              <Text style={styles.infoText}>Easy care</Text>
-            </View>
+            {renderInfoItems().map((item, index) => (
+              <View key={index} style={styles.infoItem}>
+                <Ionicons name={item.icon} size={28} color="#2D5D54" />
+                <Text style={styles.infoText}>{item.label}</Text>
+              </View>
+            ))}
           </View>
           
           <TouchableOpacity onPress={() => setModalVisible(true)}>
-            <Text style={styles.descriptionText}>{shortDescription}</Text>
-            <Text style={styles.readMore}>Read more...</Text>
+            <Text style={styles.descriptionText}>
+              {plant.description?.length > 150 
+                ? `${plant.description.substring(0, 150)}...` 
+                : plant.description}
+            </Text>
+            {plant.description?.length > 150 && (
+              <Text style={styles.readMore}>Read more...</Text>
+            )}
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.waterButton}>
@@ -115,7 +290,7 @@ const PlantDetailScreen = ({ route, navigation }) => {
             <Text style={styles.waterButtonText}>Water Now</Text>
           </TouchableOpacity>
 
-          {renderImageCatalogue()}
+          {renderTimelineSection()}
         </View>
       </ScrollView>
 
@@ -128,7 +303,7 @@ const PlantDetailScreen = ({ route, navigation }) => {
         <View style={styles.modalView}>
           <ScrollView style={styles.modalContent}>
             <Text style={styles.modalTitle}>{plant.name}</Text>
-            <Text style={styles.modalText}>{fullDescription}</Text>
+            <Text style={styles.modalText}>{plant.description}</Text>
           </ScrollView>
           <TouchableOpacity 
             style={styles.closeButton}
@@ -136,6 +311,27 @@ const PlantDetailScreen = ({ route, navigation }) => {
           >
             <Text style={styles.closeButtonText}>Close</Text>
           </TouchableOpacity>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={mainImageModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setMainImageModalVisible(false)}
+      >
+        <View style={styles.imagePreviewModal}>
+          <TouchableOpacity 
+            style={styles.closePreviewButton}
+            onPress={() => setMainImageModalVisible(false)}
+          >
+            <Ionicons name="close" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <CacheImage 
+            uri={plant?.image_url}
+            style={styles.fullScreenImage}
+            resizeMode="contain"
+          />
         </View>
       </Modal>
 
@@ -153,10 +349,11 @@ const PlantDetailScreen = ({ route, navigation }) => {
             <Ionicons name="close" size={24} color="#FFF" />
           </TouchableOpacity>
           {selectedImage && (
-            <Image 
-              source={selectedImage.uri} 
+            <CacheImage 
+              uri={selectedImage.uri}
               style={styles.previewImage}
-              resizeMode="contain"
+              tint="light"
+              preview={{ uri: selectedImage.uri }}
             />
           )}
         </View>
@@ -191,9 +388,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  mainImageContainer: {
+    width: '90%',
+    height: 250,
+    alignSelf: 'center',
+    marginTop: 20,
+    marginBottom: 10,
+    borderRadius: 25,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
   plantImage: {
     width: '100%',
-    height: 300,
+    height: '100%',
   },
   contentContainer: {
     padding: 20,
@@ -206,20 +417,23 @@ const styles = StyleSheet.create({
   },
   infoContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     backgroundColor: '#E8F3F1',
-    borderRadius: 16, // reduced from 20
-    padding: 16, // reduced from 20
-    marginBottom: 20, // reduced from 25
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
   },
   infoItem: {
+    flex: 1,
     alignItems: 'center',
+    paddingHorizontal: 8,
   },
   infoText: {
-    marginTop: 6, // reduced from 8
-    fontSize: 12, // reduced from 14
+    marginTop: 8,
+    fontSize: 12,
     color: '#2D5D54',
     fontWeight: '500',
+    textAlign: 'center',
   },
   descriptionText: {
     fontSize: 16,
@@ -304,13 +518,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   monthSection: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   monthTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#4A6D64',
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#357266',
     marginBottom: 12,
+    paddingHorizontal: 20,
+  },
+  monthScroll: {
+    paddingHorizontal: 16,
   },
   imageGrid: {
     flexDirection: 'row',
@@ -336,6 +554,8 @@ const styles = StyleSheet.create({
   previewImage: {
     width: '100%',
     height: '80%',
+    backgroundColor: '#000',
+    borderRadius: 8,
   },
   closePreviewButton: {
     position: 'absolute',
@@ -343,6 +563,73 @@ const styles = StyleSheet.create({
     right: 20,
     zIndex: 1,
     padding: 10,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  timelineSection: {
+    marginTop: 30,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E8F3F1',
+  },
+  timelineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 20,
+  },
+  timelineCard: {
+    width: 200,
+    marginRight: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    shadowColor: '#357266',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  timelineImage: {
+    width: '100%',
+    height: 150,
+    borderRadius: 16,
+    backgroundColor: '#F5F9F8',
+  },
+  timelineInfo: {
+    padding: 12,
+  },
+  timelineDate: {
+    fontSize: 14,
+    color: '#357266',
+    fontWeight: '500',
+  },
+  carousel: {
+    width: '100%',
+    height: 280,
+    marginBottom: 20,
+  },
+  addPhotoButton: {
+    padding: 8,
+    backgroundColor: '#E8F3F1',
+    borderRadius: 12,
+  },
+  emptyTimeline: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyTimelineText: {
+    color: '#6B8C86',
+    fontSize: 16,
+  },
+  fullScreenImage: {
+    width: '100%',
+    height: '90%',
+    backgroundColor: 'transparent',
   },
 });
 
