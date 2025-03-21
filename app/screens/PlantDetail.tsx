@@ -17,6 +17,8 @@ import Carousel from 'react-native-reanimated-carousel';
 import Animated from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadTimelineImage } from '../utils/imageUpload';
+import NotificationService from '../services/NotificationService';
+import CustomAlert from '../components/CustomAlert';
 
 interface Plant {
   id: string;
@@ -52,6 +54,12 @@ const PlantDetailScreen = ({ route, navigation }) => {
   const [timelineImages, setTimelineImages] = useState<TimelineImage[]>([]);
   const carouselRef = React.useRef(null);
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    message: '',
+    type: 'success',
+    title: ''
+  });
 
   useEffect(() => {
     fetchPlantDetails();
@@ -235,6 +243,47 @@ const PlantDetailScreen = ({ route, navigation }) => {
     },
   ];
 
+  const handleWaterPlant = async () => {
+    try {
+      if (!plant?.watering_frequency) {
+        return;
+      }
+
+      setAlertConfig({
+        visible: true,
+        message: `We will remind you again in ${plant.watering_frequency} ${
+          plant.watering_frequency === 1 ? 'day' : 'days'
+        }`,
+        type: 'success',
+        title: 'Watering Done'
+      });
+
+      await NotificationService.schedulePlantWateringNotification(
+        plant.id,
+        plant.name,
+        plant.watering_frequency
+      );
+
+    } catch (error) {
+      console.error('Error handling water plant:', error);
+      setAlertConfig({
+        visible: true,
+        message: 'Failed to schedule next watering reminder',
+        type: 'error',
+        title: 'Error'
+      });
+    }
+  };
+
+  const showAlert = (message: string, type = 'success', title = '') => {
+    setAlertConfig({
+      visible: true,
+      message,
+      type,
+      title
+    });
+  };
+
   if (loading || !plant) {
     return (
       <View style={styles.loadingContainer}>
@@ -286,7 +335,10 @@ const PlantDetailScreen = ({ route, navigation }) => {
             )}
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.waterButton}>
+          <TouchableOpacity 
+            style={styles.waterButton}
+            onPress={handleWaterPlant}
+          >
             <Ionicons name="water" size={24} color="white" />
             <Text style={styles.waterButtonText}>Water Now</Text>
           </TouchableOpacity>
@@ -359,6 +411,14 @@ const PlantDetailScreen = ({ route, navigation }) => {
           />
         </View>
       </Modal>
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+      />
     </SafeAreaView>
   );
 };

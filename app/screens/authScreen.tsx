@@ -110,10 +110,7 @@ export default function AuthScreen({ onAuthenticate }: { onAuthenticate: () => v
     setMode(mode === 'login' ? 'signup' : 'login');
   };
 
-  const handleNext = async () => {
-    await onAuthenticate();
-    router.replace('/screens/HomeScreen');
-  };
+  
 
   return (
     <KeyboardAvoidingView
@@ -217,13 +214,6 @@ export default function AuthScreen({ onAuthenticate }: { onAuthenticate: () => v
                   : 'Create Account'}
             </Text>
           </TouchableOpacity>
-
-          <TouchableOpacity style={styles.button} onPress={handleNext}>
-            <Text style={styles.buttonText}>
-              { 'Next' }
-            </Text>
-          </TouchableOpacity>
-
 
           <TouchableOpacity style={styles.switchMode} onPress={toggleMode}>
             <Text style={styles.switchModeText}>

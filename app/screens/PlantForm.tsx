@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { decode } from 'base64-arraybuffer';
 import CustomAlert from '../components/CustomAlert';
+import NotificationService from '../services/NotificationService';
 
 const AddPlantFormScreen = ({ navigation }) => {
   const [plantName, setPlantName] = useState('');
@@ -128,6 +129,7 @@ const AddPlantFormScreen = ({ navigation }) => {
     try {
       setUploading(true);
 
+      const hasPermission = await NotificationService.requestPermissions();
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError) {
@@ -139,7 +141,11 @@ const AddPlantFormScreen = ({ navigation }) => {
         throw new Error('No authenticated user found');
       }
 
-      const imageUrl = await uploadImage(image);
+      // Upload image and create plant in parallel
+      const [imageUrl, permissions] = await Promise.all([
+        uploadImage(image),
+        hasPermission
+      ]);
 
       const plantData = {
         user_id: user.id,
@@ -155,21 +161,8 @@ const AddPlantFormScreen = ({ navigation }) => {
         .select('*')
         .single();
 
-      console.log('Insert response:', { data, error: insertError }); // Debug log
+      if (insertError) throw insertError;
 
-      if (insertError) {
-        console.error('Insert error details:', {
-          message: insertError.message,
-          hint: insertError.hint,
-          details: insertError.details,
-          code: insertError.code
-        });
-        throw new Error(insertError.message || 'Error saving plant');
-      }
-
-      if (!data) {
-        throw new Error('No data returned after insert');
-      }
 
       showAlert(
         'Plant added successfully!',

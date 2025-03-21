@@ -125,12 +125,10 @@ const MainHomeScreen = () => {
 
   const handleDeletePlant = async (plantId: string) => {
     try {
-      // Get the plant's image filename from the image_url
       const plantToDelete = plants.find(p => p.id === plantId);
       const imageUrl = plantToDelete?.image_url || '';
       const fileName = imageUrl.split('/').pop(); // Get the filename from URL
 
-      // Delete from database first
       const { error: deleteError } = await supabase
         .from('plant')
         .delete()
@@ -141,7 +139,6 @@ const MainHomeScreen = () => {
         throw new Error(deleteError.message);
       }
 
-      // Delete image from storage if we have a filename
       if (fileName) {
         const { error: storageError } = await supabase.storage
           .from('plant-images')
@@ -203,10 +200,10 @@ const MainHomeScreen = () => {
     if (plants.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Add your first plant</Text>
+          <Text style={styles.emptyText}>Add your first plant 🌼</Text>
           <View style={styles.arrowContainer}>
             <Ionicons 
-              name="arrow-forward" 
+              name="arrow-redo-outline" 
               size={40} 
               color="#357266" 
               style={styles.arrowIcon}
@@ -242,7 +239,7 @@ const MainHomeScreen = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Plants</Text>
+        <Text style={styles.headerTitle}>My Garden 🌳</Text>
         <TouchableOpacity style={styles.filterButton}>
           <Ionicons name="filter-outline" size={24} color="#357266" />
         </TouchableOpacity>
@@ -303,7 +300,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 15,
-    marginTop: 40,  
+    marginTop: 40,  // Add top margin to header
   },
   headerTitle: {
     fontSize: 24,

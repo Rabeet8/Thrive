@@ -20,16 +20,39 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/plant-splash.jpg",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.rabeet8.plantapp"
     },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.jpg",
+          "color": "#ffffff",
+          "sounds": [
+            "./assets/sounds/notification.mp3"
+          ]
+        }
+      ]
+    ],
+    "permissions": [
+      "CAMERA",
+      "NOTIFICATIONS",
+      "WRITE_EXTERNAL_STORAGE",
+      "READ_EXTERNAL_STORAGE"
+    ],
     "web": {
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/plant-splash.jpg"
     },
-   
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "74208119-1c64-4aca-a965-b8d56467dedf"
+      }
     }
   }
 }
