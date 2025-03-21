@@ -57,15 +57,15 @@ export default function AuthScreen({ onAuthenticate }: { onAuthenticate: () => v
         });
         if (error) throw error;
         
-        setError(''); // Clear any existing errors
+        setError(''); 
         setEmail('');
         setPassword('');
         setName('');
-        setMode('login'); // Switch to login mode
+        setMode('login'); 
         Alert.alert('Account created! Please login to continue.');
         return;
       } else {
-        // Login flow
+        
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -250,7 +250,8 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 20,
     fontWeight: '800',
-  },
+    color: '#357266',  
+    },
   logoContainer: {
     alignItems: 'center',
     marginTop: 60,

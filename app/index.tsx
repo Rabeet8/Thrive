@@ -44,38 +44,33 @@ export default function RootLayout() {
 
   return (
     <>
-      {__DEV__ && hasSeenOnboarding && (
-        <View style={styles.devButton}>
-          <TouchableOpacity onPress={resetOnboarding}>
-            <Text style={styles.devButtonText}>Reset Onboarding</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.container}>
+        {__DEV__ && hasSeenOnboarding && (
+          <View style={styles.devButton}>
+            <TouchableOpacity onPress={resetOnboarding}>
+              <Text style={styles.devButtonText}>Reset Onboarding</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-      {/* {!hasSeenOnboarding ? (
-        <OnboardingScreen 
-          onComplete={async () => {
-            await AsyncStorage.setItem('hasSeenOnboarding', 'true');
-            setHasSeenOnboarding(true);
-          }}
-        />
-      ) : !isAuthenticated ? ( */}
         <AuthScreen 
           onAuthenticate={async () => {
             await AsyncStorage.setItem('isAuthenticated', 'true');
             setIsAuthenticated(true);
           }}
         />
-      {/* ) : (
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-        </Stack>
-      )} */}
+      </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    marginTop: 60,
+    justifyContent: 'center',
+  },
   devButton: {
     position: 'absolute',
     top: 40,

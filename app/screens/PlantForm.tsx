@@ -355,6 +355,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
+    marginTop: 30, 
   },
   backButton: {
     padding: 5,
@@ -411,7 +412,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
+    color: '#357266',
     marginBottom: 8,
   },
   input: {

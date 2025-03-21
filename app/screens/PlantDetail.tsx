@@ -50,9 +50,9 @@ const PlantDetailScreen = ({ route, navigation }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<PlantImage | null>(null);
   const [timelineImages, setTimelineImages] = useState<TimelineImage[]>([]);
-  const [mainImageModalVisible, setMainImageModalVisible] = useState(false);
   const carouselRef = React.useRef(null);
-  
+  const [isImageModalVisible, setIsImageModalVisible] = useState(false);
+
   useEffect(() => {
     fetchPlantDetails();
     fetchTimelineImages();
@@ -154,6 +154,10 @@ const PlantDetailScreen = ({ route, navigation }) => {
     });
   };
 
+  const handleImageClick = () => {
+    setIsImageModalVisible(true);
+  };
+
   const renderTimelineCard = (image: TimelineImage) => (
     <TouchableOpacity
       key={image.id}
@@ -251,10 +255,7 @@ const PlantDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
         
-        <TouchableOpacity 
-          style={styles.mainImageContainer}
-          onPress={() => setMainImageModalVisible(true)}
-        >
+        <TouchableOpacity onPress={handleImageClick}>
           <CacheImage 
             uri={plant.image_url}
             style={styles.plantImage} 
@@ -315,27 +316,6 @@ const PlantDetailScreen = ({ route, navigation }) => {
       </Modal>
 
       <Modal
-        visible={mainImageModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setMainImageModalVisible(false)}
-      >
-        <View style={styles.imagePreviewModal}>
-          <TouchableOpacity 
-            style={styles.closePreviewButton}
-            onPress={() => setMainImageModalVisible(false)}
-          >
-            <Ionicons name="close" size={24} color="#FFF" />
-          </TouchableOpacity>
-          <CacheImage 
-            uri={plant?.image_url}
-            style={styles.fullScreenImage}
-            resizeMode="contain"
-          />
-        </View>
-      </Modal>
-
-      <Modal
         visible={!!selectedImage}
         transparent={true}
         animationType="fade"
@@ -358,6 +338,27 @@ const PlantDetailScreen = ({ route, navigation }) => {
           )}
         </View>
       </Modal>
+
+      <Modal
+        visible={isImageModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsImageModalVisible(false)}
+      >
+        <View style={styles.imageModalContainer}>
+          <TouchableOpacity 
+            style={styles.closeModalButton}
+            onPress={() => setIsImageModalVisible(false)}
+          >
+            <Ionicons name="close" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <CacheImage 
+            uri={plant.image_url}
+            style={styles.fullScreenImage}
+            resizeMode="contain"
+          />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -372,7 +373,7 @@ const styles = StyleSheet.create({
   },
   header: {
     position: 'absolute',
-    top: 15,
+    top: 60, // Updated from 15
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -388,23 +389,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  mainImageContainer: {
-    width: '90%',
-    height: 250,
-    alignSelf: 'center',
-    marginTop: 20,
-    marginBottom: 10,
-    borderRadius: 25,
-    overflow: 'hidden',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
   plantImage: {
-    width: '100%',
-    height: '100%',
+    width: '90%',
+    height: 300,
+    marginTop: 45,
+    borderRadius: 25,
+    alignSelf: 'center', // Center the image
+    marginHorizontal: 'auto', // Additional centering
   },
   contentContainer: {
     padding: 20,
@@ -626,10 +617,24 @@ const styles = StyleSheet.create({
     color: '#6B8C86',
     fontSize: 16,
   },
+  imageModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   fullScreenImage: {
     width: '100%',
-    height: '90%',
-    backgroundColor: 'transparent',
+    height: '80%',
+  },
+  closeModalButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 1,
+    padding: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
   },
 });
 

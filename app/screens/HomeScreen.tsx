@@ -272,10 +272,22 @@ const MainHomeScreen = () => {
 
 const HomeScreen = () => {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Main" component={MainHomeScreen} />
-      <Stack.Screen name="PlantDetail" component={PlantDetailScreen} />
-      <Stack.Screen name="AddPlantForm" component={PlantForm} />
+    <Stack.Navigator 
+      initialRouteName="Main"
+      screenOptions={{ 
+        headerShown: false,
+        animation: 'fade',
+        presentation: 'containedModal',
+        contentStyle: {
+          backgroundColor: '#FFFFFF',
+        }
+      }}
+    >
+      <Stack.Group screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Main" component={MainHomeScreen} />
+        <Stack.Screen name="PlantDetail" component={PlantDetailScreen} />
+        <Stack.Screen name="AddPlantForm" component={PlantForm} />
+      </Stack.Group>
     </Stack.Navigator>
   );
 };
@@ -284,13 +296,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-  },
+      },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 15,
+    marginTop: 40,  
   },
   headerTitle: {
     fontSize: 24,
@@ -302,6 +315,7 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 15,
+    marginTop: 10,  // Add top margin to card list
   },
   card: {
     flexDirection: 'row',

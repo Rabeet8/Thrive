@@ -4,7 +4,7 @@ import AuthScreen from '../screens/authScreen'
 const HomeScreen = () => {
   return (
     <div>
-      <AuthScreen />
+      {/* <AuthScreen /> */}
     </div>
   )
 }
