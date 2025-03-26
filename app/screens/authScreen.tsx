@@ -236,6 +236,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingBottom: 40,
+    marginTop: 40, 
   },
   logoText: {
     fontSize: 20,

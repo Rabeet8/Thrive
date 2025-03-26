@@ -20,9 +20,9 @@ const onboardingSteps: OnboardingStep[] = [
     icon: `leaf`,
   },
   {
-    title: `Customized care based on species`,
-    description: `Get specific care instructions for your plants`,
-    icon: `flower`,
+    title: `Keep a Plant Diary`,
+    description: `Record fertilizing schedules, pruning dates, and repotting activities`,
+    icon: `calendar`,
   },
 ];
 

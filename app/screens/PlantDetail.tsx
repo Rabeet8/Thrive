@@ -45,6 +45,8 @@ interface GroupedImages {
   [key: string]: TimelineImage[];
 }
 
+
+
 const PlantDetailScreen = ({ route, navigation }) => {
   const { plantId } = route.params;
   const [plant, setPlant] = useState<Plant | null>(null);
@@ -243,35 +245,50 @@ const PlantDetailScreen = ({ route, navigation }) => {
     },
   ];
 
+
   const handleWaterPlant = async () => {
+    if (!plant?.watering_frequency) {
+      console.error('No watering frequency set');
+      return;
+    }
+
+    // Show alert immediately
+    setAlertConfig({
+      visible: true,
+      message: `Plant watered! Next reminder scheduled in ${plant.watering_frequency} ${
+        plant.watering_frequency === 1 ? 'day' : 'days'
+      }`,
+      type: 'success',
+      title: 'Watering Done'
+    });
+
+    // Handle database update and notification scheduling in background
     try {
-      if (!plant?.watering_frequency) {
-        return;
+      const currentTime = new Date().toISOString();
+      const { error: updateError } = await supabase
+        .from('plant')
+        .update({ 
+          last_watered: currentTime 
+        })
+        .eq('id', plant.id);
+
+      if (updateError) {
+        console.error('Database update error:', updateError);
+        throw new Error('Failed to update watering time');
       }
 
-      setAlertConfig({
-        visible: true,
-        message: `We will remind you again in ${plant.watering_frequency} ${
-          plant.watering_frequency === 1 ? 'day' : 'days'
-        }`,
-        type: 'success',
-        title: 'Watering Done'
-      });
-
-      await NotificationService.schedulePlantWateringNotification(
+      // Schedule notification in background
+      NotificationService.schedulePlantWateringNotification(
         plant.id,
         plant.name,
         plant.watering_frequency
-      );
+      ).catch(error => {
+        console.error('Error scheduling notification:', error);
+      });
 
     } catch (error) {
-      console.error('Error handling water plant:', error);
-      setAlertConfig({
-        visible: true,
-        message: 'Failed to schedule next watering reminder',
-        type: 'error',
-        title: 'Error'
-      });
+      console.error('Error in handleWaterPlant:', error);
+      // Don't show error alert since success alert is already shown
     }
   };
 

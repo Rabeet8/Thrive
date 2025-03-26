@@ -1,59 +1,132 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 
-// Configure notifications to show when app is in foreground
+// Update notification handler configuration
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
-    shouldSetBadge: true,
+    shouldSetBadge: false,
+    priority: Notifications.AndroidNotificationPriority.HIGH,
   }),
 });
 
 class NotificationService {
-  static async requestPermissions() {
-    const { status } = await Notifications.requestPermissionsAsync();
-    return status === 'granted';
+  static isInitialized = false;
+  static notificationListener: Notifications.Subscription | null = null;
+  static responseListener: Notifications.Subscription | null = null;
+
+  static async init() {
+    if (this.isInitialized) return;
+
+    try {
+      // Register for push notifications
+      await this.registerForPushNotificationsAsync();
+
+      // Configure Android channel
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('plant-watering', {
+          name: 'Plant Watering',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+        });
+      }
+
+      // Set up notification listeners
+      this.notificationListener = Notifications.addNotificationReceivedListener(notification => {
+        console.log('NOTIFICATION RECEIVED:', notification);
+      });
+
+      this.responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+        console.log('NOTIFICATION RESPONSE:', response);
+      });
+
+      this.isInitialized = true;
+    } catch (error) {
+      console.error('Error initializing notifications:', error);
+      throw error;
+    }
   }
 
-  static async schedulePlantWateringNotification(plantId: string, plantName: string, frequencyDays: number) {
-    if (!plantId || !plantName || !frequencyDays) {
-      console.error('Invalid parameters for scheduling notification');
-      return null;
+  static async registerForPushNotificationsAsync() {
+    if (!Device.isDevice) {
+      console.log('Must use physical device for Push Notifications');
+      return;
     }
 
     try {
-      // Cancel any existing notifications for this plant
-      await this.cancelPlantNotifications(plantId);
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
 
-      // Calculate next watering date preserving the current time
-      const now = new Date();
-      const nextWateringDate = new Date();
-      nextWateringDate.setDate(now.getDate() + frequencyDays);
-      nextWateringDate.setHours(now.getHours());
-      nextWateringDate.setMinutes(now.getMinutes());
-      nextWateringDate.setSeconds(now.getSeconds());
-      console.log('Current time:', now);
-      console.log('Scheduled time:', nextWateringDate);
-      console.log('Difference in milliseconds:', nextWateringDate.getTime() - now.getTime());
-      // Schedule notification for exact date
-      const notificationId = await Notifications.scheduleNotificationAsync({
+      if (finalStatus !== 'granted') {
+        throw new Error('Permission not granted for notifications');
+      }
+
+      // Get project ID for push notifications
+      const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+      if (projectId) {
+        const token = await Notifications.getExpoPushTokenAsync({ projectId });
+        console.log('Push token:', token);
+      }
+    } catch (error) {
+      console.error('Error getting push token:', error);
+    }
+  }
+
+  static async requestPermissions(): Promise<boolean> {
+    try {
+      if (!Device.isDevice) {
+        console.log('Must use physical device for Push Notifications');
+        return false;
+      }
+
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      return finalStatus === 'granted';
+    } catch (error) {
+      console.error('Error requesting permissions:', error);
+      return false;
+    }
+  }
+
+  static async schedulePlantWateringNotification(
+    plantId: string, 
+    plantName: string, 
+    frequencyDays: number
+  ) {
+    try {
+      const triggerDate = new Date();
+      triggerDate.setDate(triggerDate.getDate() + frequencyDays);
+
+      const notification = {
         content: {
           title: "Time to water your plant! 💧",
           body: `${plantName} needs watering`,
-          data: { plantId },
+          data: { plantId, plantName },
+          sound: true,
         },
-        
         trigger: {
-          date: nextWateringDate,
-          repeats: false // Set to false to ensure one-time notification
+          date: triggerDate,
+          channelId: Platform.OS === 'android' ? 'plant-watering' : undefined,
         },
-      });
-      console.log('Notification trigger:', {
-        date: nextWateringDate.toISOString(),
-        repeats: false
-      });
+      };
 
+      const notificationId = await Notifications.scheduleNotificationAsync(notification);
+      console.log('Scheduled notification:', notificationId);
       return notificationId;
     } catch (error) {
       console.error('Error scheduling notification:', error);
@@ -61,33 +134,17 @@ class NotificationService {
     }
   }
 
-
-  
-  static async scheduleImmediateNotification(plantName: string) {
-    try {
-      const notificationId = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Plant Added Successfully! 🌱",
-          body: `${plantName} has been added to your garden`,
-        },
-        trigger: null, // Immediate notification
-      });
-      return notificationId;
-    } catch (error) {
-      console.error('Error scheduling immediate notification:', error);
-      return null;
+  static cleanup() {
+    if (this.notificationListener) {
+      Notifications.removeNotificationSubscription(this.notificationListener);
     }
-  }
-
-  static async cancelPlantNotifications(plantId: string) {
-    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    
-    for (const notification of scheduledNotifications) {
-      if (notification.content.data?.plantId === plantId) {
-        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-      }
+    if (this.responseListener) {
+      Notifications.removeNotificationSubscription(this.responseListener);
     }
   }
 }
+
+// Initialize on import
+NotificationService.init().catch(console.error);
 
 export default NotificationService;

@@ -33,7 +33,8 @@
             "./assets/sounds/notification.mp3"
           ]
         }
-      ]
+      ],
+      "expo-router"
     ],
     "permissions": [
       "CAMERA",

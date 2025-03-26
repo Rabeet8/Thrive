@@ -129,7 +129,6 @@ const AddPlantFormScreen = ({ navigation }) => {
     try {
       setUploading(true);
 
-      const hasPermission = await NotificationService.requestPermissions();
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError) {
@@ -141,11 +140,8 @@ const AddPlantFormScreen = ({ navigation }) => {
         throw new Error('No authenticated user found');
       }
 
-      // Upload image and create plant in parallel
-      const [imageUrl, permissions] = await Promise.all([
-        uploadImage(image),
-        hasPermission
-      ]);
+      // Upload image
+      const imageUrl = await uploadImage(image);
 
       const plantData = {
         user_id: user.id,
@@ -163,11 +159,10 @@ const AddPlantFormScreen = ({ navigation }) => {
 
       if (insertError) throw insertError;
 
-
       showAlert(
-        'Plant added successfully!',
+        'Navigate to your plant and click on the "Water Now" button to start scheduling notification',
         'success',
-        'Success',
+        'Plant added successfully!',
         () => navigation.goBack()
       );
     } catch (error) {
@@ -312,7 +307,7 @@ const AddPlantFormScreen = ({ navigation }) => {
             disabled={uploading}
           >
             <Text style={styles.submitButtonText}>
-              {uploading ? 'Saving...' : 'Add Plant'}
+              {uploading ? 'Please wait...' : 'Add Plant'}
             </Text>
           </TouchableOpacity>
         </ScrollView>
