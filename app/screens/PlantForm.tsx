@@ -160,7 +160,7 @@ const AddPlantFormScreen = ({ navigation }) => {
       if (insertError) throw insertError;
 
       showAlert(
-        'Navigate to your plant and click on the "Water Now" button to start scheduling notification',
+        'Water your plant now and go to your plants page to click the "Water Now" button to begin scheduling notifications.',
         'success',
         'Plant added successfully!',
         () => navigation.goBack()

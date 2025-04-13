@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface OnboardingStep {
   title: string;
@@ -29,6 +30,18 @@ const onboardingSteps: OnboardingStep[] = [
 export default function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
   const [currentStep, setCurrentStep] = useState(0);
   const { width } = useWindowDimensions();
+
+  const handleComplete = async () => {
+    try {
+      // Set the value before calling onComplete
+      await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+    } catch (error) {
+      console.error('Error saving onboarding status:', error);
+    } finally {
+      // Always call onComplete even if storage fails
+      onComplete();
+    }
+  };
 
   const renderItem = ({ item, index }: { item: OnboardingStep; index: number }) => (
     <View style={[styles.slide, { width }]}>
@@ -67,7 +80,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
       
       <TouchableOpacity
         style={styles.button}
-        onPress={onComplete}
+        onPress={handleComplete}
       >
         <Text style={styles.buttonText}>
           {currentStep === onboardingSteps.length - 1 ? 'Get Started' : 'Skip'}

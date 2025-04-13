@@ -13,8 +13,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { Image as CacheImage } from 'react-native-expo-image-cache';
-import Carousel from 'react-native-reanimated-carousel';
-import Animated from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadTimelineImage } from '../utils/imageUpload';
 import NotificationService from '../services/NotificationService';

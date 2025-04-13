@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert
+  Alert,
+  Keyboard
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import OnboardingScreen from './OnboardingScreen';
+import CustomAlert from '../components/CustomAlert';
 type AuthMode = 'login' | 'signup';
 
 interface AuthProps {
@@ -29,7 +32,44 @@ export default function AuthScreen({ onAuthenticate }: { onAuthenticate: () => v
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showOnboarding, setShowOnboarding] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'warning';
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'success'
+  });
   const router = useRouter();
+
+  useEffect(() => {
+    checkOnboardingStatus();
+  }, []);
+
+  const checkOnboardingStatus = async () => {
+    try {
+      const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
+      setShowOnboarding(hasSeenOnboarding !== 'true');
+    } catch (error) {
+      console.error('Error checking onboarding status:', error);
+      setShowOnboarding(false); // Default to not showing onboarding if there's an error
+    } finally {
+      setIsInitializing(false);
+    }
+  };
+
+  if (isInitializing) {
+    return null; // Or a loading spinner
+  }
+
+  if (showOnboarding) {
+    return <OnboardingScreen onComplete={() => setShowOnboarding(false)} />;
+  }
 
   const handleSubmit = async () => {
     if (!email || !password) {
@@ -62,7 +102,12 @@ export default function AuthScreen({ onAuthenticate }: { onAuthenticate: () => v
         setPassword('');
         setName('');
         setMode('login'); 
-        Alert.alert('Account created! Please login to continue.');
+        setAlertConfig({
+          visible: true,
+          title: 'Success',
+          message: 'Account created! Please login to continue.',
+          type: 'success'
+        });
         return;
       } else {
         
@@ -82,6 +127,12 @@ export default function AuthScreen({ onAuthenticate }: { onAuthenticate: () => v
       }
     } catch (error: any) {
       setError(error.message);
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: error.message,
+        type: 'error'
+      });
       console.error(error);
     } finally {
       setLoading(false);
@@ -90,19 +141,32 @@ export default function AuthScreen({ onAuthenticate }: { onAuthenticate: () => v
 
   const handleForgotPassword = async () => {
     if (!email) {
-      setError('Please enter your email address');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter your email address',
+        type: 'error'
+      });
       return;
     }
+    
 
     try {
       const { data, error } = await supabase.auth.resetPasswordForEmail(email);
       if (error) throw error;
-      Alert.alert(
-        'Password Reset',
-        'Password reset email has been sent to your email address.'
-      );
+      setAlertConfig({
+        visible: true,
+        title: 'Password Reset',
+        message: 'Password reset email has been sent to your email address.',
+        type: 'success'
+      });
     } catch (error: any) {
-      setError('Error sending password reset email. Please try again.');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'Error sending password reset email. Please try again.',
+        type: 'error'
+      });
     }
   };
 
@@ -115,10 +179,21 @@ export default function AuthScreen({ onAuthenticate }: { onAuthenticate: () => v
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 25}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.logoContainer}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        <TouchableOpacity 
+          activeOpacity={1} 
+          onPress={Keyboard.dismiss}
+          style={styles.dismissKeyboard}
+        >
+          <View style={styles.logoContainer}>
         <Image 
   source={require('../../assets/images/icon.jpg')} 
   style={[styles.logo, { width: 170}]} 
@@ -223,7 +298,15 @@ export default function AuthScreen({ onAuthenticate }: { onAuthenticate: () => v
             </Text>
           </TouchableOpacity>
         </View>
+        </TouchableOpacity>
       </ScrollView>
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -235,7 +318,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 40,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 80,
     marginTop: 40, 
   },
   logoText: {
@@ -352,5 +435,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 16,
     textAlign: 'center',
+  },
+  dismissKeyboard: {
+    flex: 1,
   },
 });

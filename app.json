@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/plant-splash.jpg",
+      "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -18,7 +18,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/plant-splash.jpg",
+        "foregroundImage": "./assets/images/icon.jpg  ",
         "backgroundColor": "#ffffff"
       },
       "package": "com.rabeet8.plantapp"
@@ -51,8 +51,11 @@
       "typedRoutes": true
     },
     "extra": {
+      "router": {
+        "origin": false
+      },
       "eas": {
-        "projectId": "74208119-1c64-4aca-a965-b8d56467dedf"
+        "projectId": "61e92e7e-7fe0-42f3-835a-96973dc7bf22"
       }
     }
   }
