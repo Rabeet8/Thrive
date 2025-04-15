@@ -33,3 +33,27 @@
 ```bash
 git clone https://github.com/your-username/thrive.git
 cd thrive
+```
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Start the development server
+```bash
+npx expo start
+```
+#### Make sure you have the Expo Go app installed on your mobile device for live testing.
+
+### 🤝 Contributing
+Contributions are welcome!
+If you're interested in improving the user experience, fixing bugs, or adding new features, feel free to open an issue or submit a pull request.
+
+### 🙌 Feedback
+The app is currently in active development — your constructive feedback is highly appreciated!
+Let’s make plant care smarter, together. 🌿
+
+
+
